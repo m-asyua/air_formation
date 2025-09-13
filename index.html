@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+
+	<style type="text/css">
+
+		div.bar {
+		  --volume: 0%;
+		  background-color: gray;
+		}
+
+		div.bar::before {
+		   content: '';
+		   position: absolute;
+		   top: 0;
+		   bottom: 0;
+		   left: 0;
+		   width: var(--volume);
+		   background-color: green;
+		   transition: width 100ms linear;
+		}
+
+	</style>
+
+</head>
+
+
+
+<script type="importmap">
+	{
+		"imports": {
+		   "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+		   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/",
+		   "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3/lib/three-vrm.module.min.js",
+		   "@pixiv/three-vrm-animation": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm-animation@3.4.2/lib/three-vrm-animation.module.js"
+		}
+	}
+</script>
+
+
+
+
+
+
+<body bgcolor="#ffffee">
+
+	<!-- bar -->
+	<div class="bar" id="volume-bar" style="position:absolute;top:50px;left:250px;width:300px;height:10px;" >
+	</div>
+
+
+	<!--  toggle   -->
+	<div id="target_control_panel"   style="z-index:30;position:absolute;top:5px;left:5px;" >
+	</div>
+
+	<!-- start stop button -->
+	<div id="button_control"  style="z-index:20;position:absolute;top:50px;left:50px;" >
+		<button id="start" >Start</button>フォーメーションのみ<br />
+		<button id="stop"  >Stop </button>
+
+<br />
+<br />
+アップロード <span id="sound">sound</span>
+<input id="upload_sound_file" type="file" />
+<br />
+		<button id="sound_start" >音を再生</button>
+		<button id="sound_stop" >音を終了</button>
+
+
+	</div>
+
+
+
+
+<div id="control_panel" style="z-index:20;position:absolute;top:100px;left:700px;background-color:#ddd" >
+
+<br />
+<input type="checkbox" id="camera_movement" >数値設定したカメラの動きを使う<br />
+
+<br />
+アニメーションのスピード<br />
+<input type="range" id="time_scale"  min="0" max="3" step="0.001" value="1.0" /><span id="time_scale_label">0</span><br />
+<br />
+
+VRMキャラクタの入れ替え
+<input id="read_file_vrm0" type="file" /><br />
+<br />
+歌唱タイプの選択：
+<select id="type_select">
+	<option>(not selected)</option>
+</select>
+
+<br />
+音量に合わせて口を
+<input type="radio" id="mouth_sw" name="mouth_sw" value="1">開く/
+<input type="radio" id="mouth_sw" name="mouth_sw" value="0">開かない
+<br />
+
+<!--  開くが１で，開かないが０になっているので注意   -->
+
+
+
+
+
+<br />
+.vrmaファイルの確認
+<select id="vrma_select"></select>
+<br />
+
+歌唱タイプで「アップロードファイル」を<br />
+選んだときの<br />
+.vrmaファイルの指定（サーバには保存されません）<br /><br />
+アップロード0 <span id="vrma0">sample0</span>
+<input id="upload_file_vrma0" type="file" /><br>
+アップロード1 <span id="vrma1">sample1</span>
+<input id="upload_file_vrma1" type="file" /><br>
+アップロード2 <span id="vrma2">sample2</span>
+<input id="upload_file_vrma2" type="file" /><br>
+アップロード3 <span id="vrma3">sample3</span>
+<input id="upload_file_vrma3" type="file" /><br>
+
+<br />
+level0:--<br />
+level1:<input type="text" id="level1" value="0.2"><br />
+level2:<input type="text" id="level2" value="0.3"><br />
+level3:<input type="text" id="level3" value="0.35"><br />
+
+</div>
+
+
+
+
+
+<script>
+
+
+
+	let control_panel_flg = 1;
+
+	let select_option_tags ;
+	let renderer, scene, camera;
+
+
+	let next_currentMixer = new Array();
+
+
+	let sound_file_data = null;
+
+
+	let vrm_character_array  =  new Array();
+	let character_load_flg  =  new Array();
+
+	let vrma_array = [[0,0,0,0], [0,0,0,0], [0,0,0,0]];
+	let vrma_counter = 0;
+	let vrma_array_name = [[0,0,0,0], [0,0,0,0], [0,0,0,0]];
+
+
+	let audio_blob_url=null;
+
+</script>
+
+
+
+<script type="module">
+
+	import * as THREE from 'three';
+	
+	
+	import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+	import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+	import { createVRMAnimationClip, VRMAnimationLoaderPlugin, VRMLookAtQuaternionProxy } from '@pixiv/three-vrm-animation';
+	import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+
+
+
+//	import { loadMixamoAnimation } from './loadMixamoAnimation.js';
+
+
+
+	let gltf_loader = new GLTFLoader();
+	gltf_loader.crossOrigin = 'anonymous';
+
+	gltf_loader.register((parser) => {
+		return new VRMLoaderPlugin(parser);
+	});
+
+	gltf_loader.register((parser) => {
+		return new VRMAnimationLoaderPlugin(parser);
+	});
+
+	let gv = THREE.VRM;
+	console.log("gv",gv);
+
+
+	let clock = new THREE.Clock();
+
+
+
+
+
+function upload_sound_file_api(number,input){
+
+	let reader = new FileReader();
+	reader.addEventListener('load', function() {
+		let blob = new Blob( [input], { type: "application/octet-stream" } );
+		audio_blob_url = URL.createObjectURL(blob);
+
+		//input.nameがファイル名で
+		// urlがデータになっている
+
+//		sound_file_data = new Audio();
+//new Audioではなくてタグで追加する
+// 
+
+		sound_file_data   =   document.createElement("audio");
+		sound_file_data.src  =  audio_blob_url;
+		sound_file_data.id = "sound_file_data";
+		document.body.appendChild(sound_file_data);
+
+console.log(audio_blob_url);
+console.log(sound_file_data);
+
+
+	}, true)
+
+	reader.readAsDataURL(input);
+
+}
+
+
+
+
+document.getElementById('upload_sound_file').addEventListener('change', function(event){
+	let input = document.getElementById('upload_sound_file').files[0];
+	upload_sound_file_api(0,input);
+}, true)
+
+
+function init(){
+
+	renderer = new THREE.WebGLRenderer({ alpha: true });
+
+////	renderer.setSize( window.innerWidth/2, window.innerHeight );
+////	renderer.setPixelRatio( window.devicePixelRatio );
+
+	renderer.setSize( window.innerWidth/4, window.innerHeight );  //なぜか４で割ると真正面になる
+	renderer.setPixelRatio( 10 );
+
+
+	renderer.setClearColor(0x000000, 0);//透明処理
+
+
+	let option_str = "position:absolute;z-index:0;top:0px;left:0px;width:"+window.innerWidth+"px;height:"+window.innerHeight+"px;";
+	//topとleft はあとで，basic_settings.jsをもとに再設定されるので注意
+//console.log(option_str);
+
+	renderer.domElement.setAttribute("style", option_str);
+	renderer.domElement.id = "character_window";
+
+//console.log("renderer.domElement",renderer.domElement );
+
+	document.body.appendChild( renderer.domElement );
+
+
+
+////	let camera = new THREE.PerspectiveCamera( 30.0, window.innerWidth / window.innerHeight, 0.1, 20.0 );
+////	let camera = new THREE.PerspectiveCamera(40.0,   (window.innerWidth/2) / window.innerHeight    , 0.1,  200.0 );
+
+
+
+	camera = new THREE.PerspectiveCamera(3.0,   (window.innerWidth) / (window.innerHeight+100)    ,1,  800.0 );
+// はじめのパラメータがFOV
+// 遠近感をそれほど強調したくない場合は視野角を小さくする
+
+	//さいごのパラメータはたとえば２００ならば
+	// カメラの位置からZ軸（手前から奥）200以降は描画しないことにする，という意味
+
+
+	camera.position.set( camera_position[0],  camera_position[1], camera_position[2] );
+	camera.rotation.set( camera_rotation[0],  camera_rotation[1], camera_rotation[2] );
+
+////camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+	// controls
+	const controls = new OrbitControls( camera, renderer.domElement );
+	controls.screenSpacePanning = true;
+	controls.target.set( 0.0, 0.0, 0.0 );
+	controls.update();
+
+controls.addEventListener('change', () => {
+	console.log('カメラが動きました');
+	console.log(
+		Math.round(camera.position.x*10)/10+","+
+		Math.round(camera.position.y*10)/10+","+
+		Math.round(camera.position.z*10)/10+","+
+		Math.round(camera.rotation.x*10)/10+","+
+		Math.round(camera.rotation.y*10)/10+","+
+		Math.round(camera.rotation.z*10)/10
+	);
+
+		renderer.render(scene, camera);
+});
+
+	// scene
+	scene = new THREE.Scene();
+
+	// light
+	let light = new THREE.DirectionalLight( 0xffffff, Math.PI );
+	light.position.set( 1.0, 1.0, 1.0 ).normalize();
+	scene.add(light);
+
+
+
+
+
+
+	// making list
+	select_option_tags = document.getElementById("vrma_select");
+	let option_tag;
+	option_tag = document.createElement("option");
+	option_tag.innerHTML = "(not selected)";
+	select_option_tags.appendChild(option_tag);
+
+
+
+
+	remove_vrma_list();
+
+
+// helpers
+			const gridHelper = new THREE.GridHelper( 30,30 );
+			scene.add( gridHelper );
+
+			const axesHelper = new THREE.AxesHelper( 10 );
+			scene.add( axesHelper );
+
+
+
+	for( let i=0;i<vrm_files.length;i++){
+
+//		setTimeout( function (){
+			static_vrm_load(i, vrm_files[i]);
+
+//		},3000*i);
+		
+	}
+	//VRMのロード
+	// XYZと回転の予定は？
+
+
+
+	static_load2(0, 0, song_pattern[0][0] );
+	static_load2(0, 1, song_pattern[0][1] );
+	static_load2(0, 2, song_pattern[0][2] );
+	static_load2(0, 3, song_pattern[0][3] );
+
+	static_load2(1, 0, song_pattern[1][0] );
+	static_load2(1, 1, song_pattern[1][1] );
+	static_load2(1, 2, song_pattern[1][2] );
+	static_load2(1, 3, song_pattern[1][3] );
+
+//?? エラー防止のために仮にファイルを入れておく
+	static_load2(2, 0, song_pattern[2][0] );
+	static_load2(2, 1, song_pattern[2][1] );
+	static_load2(2, 2, song_pattern[2][2] );
+	static_load2(2, 3, song_pattern[2][3] );
+
+
+//5段階ぐらいにしておいて，2つ分読み込む
+//プルダウンに応じて，サブメニュー的にリストが変わるようにしておくとか．
+
+
+
+
+
+}
+
+
+
+function read_vrm_file_api(number,input){
+
+	let reader = new FileReader();
+
+	reader.addEventListener('load', function() {
+
+		// delete character
+		let old_vrm   =  vrm_character_array[number];
+		if(typeof old_vrm === "undefined"){
+		}else{
+			scene.remove(old_vrm.scene);
+		}
+
+		let vrm_file_content = reader.result;
+
+		character_load_flg = -1;
+		vrm_model_load(number,  vrm_file_content,     0,    3, 0  );
+
+		vrm_anime_check_change(character_change_sub , number );
+
+	}, true)
+	reader.readAsDataURL(input);
+}
+
+
+
+
+function read_vrma_file_api(number,input){
+
+	let reader = new FileReader();
+
+	reader.addEventListener('load', function() {
+
+////		let vrma_file_content = reader.result;
+
+		let blob = new Blob( [input], { type: "application/octet-stream" } );
+		let url = URL.createObjectURL(blob);
+
+console.log(url);
+
+		load(url);
+
+		// animate
+		clock.start();
+
+		setTimeout(animate,3000);
+
+	}, true)
+
+	reader.readAsText(input, 'UTF-8');
+
+}
+
+
+
+
+
+function upload_vrma_file_api(number,input){
+
+	let reader = new FileReader();
+
+	reader.addEventListener('load', function() {
+
+
+		let blob = new Blob( [input], { type: "application/octet-stream" } );
+		let url = URL.createObjectURL(blob);
+
+
+	let number_of_upload_file_option  =  song_type.length; // 配列の最後がアップロードファイル
+	static_load3( number_of_upload_file_option   , number, url, input.name );
+
+//ファイル名をuploadの横に付ける
+document.getElementById("vrma"+number).innerHTML = input.name;
+
+		
+
+	}, true)
+
+	reader.readAsText(input, 'UTF-8');
+
+}
+
+
+
+async function vrm_model_load(character_id, vrm_file_name, x,y,z){
+
+	let my_loader = gltf_loader;
+
+	my_loader.crossOrigin = 'anonymous';
+
+	my_loader.load(  vrm_file_name,  ( gltf ) => {
+
+				let my_vrm = gltf.userData.vrm;
+
+console.log("gltf.userData",gltf.userData);
+
+
+				character_load_flg[character_id] = 0;
+				vrm_character_array[character_id] = my_vrm;
+
+
+				const lookAtQuatProxy = new VRMLookAtQuaternionProxy( my_vrm.lookAt );
+				lookAtQuatProxy.name = 'lookAtQuaternionProxy';
+				my_vrm.scene.add( lookAtQuatProxy );
+
+
+///				my_vrm.humanoid.getNormalizedBoneNode( 'hips' ).position.set(x,y,z);
+
+//				my_vrm.scene.position.set(x,y,z);
+
+				vrm_character_array[character_id] = my_vrm;
+
+				initCharacter( my_vrm );
+
+				scene.add( my_vrm.scene );
+
+
+
+
+		},
+		( progress ) => {
+			let percent = ( progress.loaded / progress.total ) *100 ;
+			console.log("Loading model..."+vrm_file_name+","+percent+"%" );
+		}
+	);
+
+}
+
+function body_rotation(bone_name, character_id, x,y,z){
+	let this_vrm = vrm_character_array[character_id];
+//	this_vrm.humanoid.getNormalizedBoneNode(bone_name).rotation.x = x;
+//	this_vrm.humanoid.getNormalizedBoneNode(bone_name).rotation.y = y;
+//	this_vrm.humanoid.getNormalizedBoneNode(bone_name).rotation.z = z;
+
+	this_vrm.humanoid.getRawBoneNode(bone_name).rotation.x = x;
+	this_vrm.humanoid.getRawBoneNode(bone_name).rotation.y = y;
+	this_vrm.humanoid.getRawBoneNode(bone_name).rotation.z = z;
+	renderer.render(scene, camera);
+}
+
+function initCharacter( vrm ) {
+//	vrm.humanoid.getNormalizedBoneNode( 'leftUpperArm' ).rotation.z   =   Math.PI /180 * 72;
+//	vrm.humanoid.getNormalizedBoneNode( 'rightUpperArm' ).rotation.z  =  -Math.PI /180 * 72;
+//	vrm.humanoid.getNormalizedBoneNode( 'leftLowerArm' ).rotation.z   =   Math.PI /180 * 15;
+//	vrm.humanoid.getNormalizedBoneNode( 'rightLowerArm' ).rotation.z  =  -Math.PI /180 * 15;
+
+	vrm.humanoid.getRawBoneNode( 'leftUpperArm' ).rotation.z   =   Math.PI /180 * 72;
+	vrm.humanoid.getRawBoneNode( 'rightUpperArm' ).rotation.z  =  -Math.PI /180 * 72;
+	vrm.humanoid.getRawBoneNode( 'leftLowerArm' ).rotation.z   =   Math.PI /180 * 15;
+	vrm.humanoid.getRawBoneNode( 'rightLowerArm' ).rotation.z  =  -Math.PI /180 * 15;
+
+	renderer.render(scene, camera);
+}
+
+function vrm_rot_Hips(character_id, x,y,z){
+	body_rotation('hips', character_id, x,y,z);
+}
+
+
+function vrm_anime_check_change(callback,number){
+	if(character_load_flg[number] == -1){
+		setTimeout(vrm_anime_check_change, 200, callback,number);
+	}else{
+		callback(number);	
+	}
+}
+
+
+function character_change_sub( number ){
+	let this_vrm   =  vrm_character_array[number];
+	vrm_rot_Hips( number,  
+		characters_rotation[number][0],
+		characters_rotation[number][1],
+		characters_rotation[number][2]
+	);	
+	this_vrm.humanoid.getRawBoneNode('hips').position.set(
+		characters_position[number][0],
+		characters_position[number][1],
+		characters_position[number][2]
+	);
+	renderer.render(scene, camera);
+}
+
+
+let exec_vrma = null;
+
+
+
+
+
+function open_mouth(level){
+
+
+
+	if(mouth_sw_flg == 0){
+		return;
+	}
+
+
+	for(let i=0;i<vrm_files.length;i++){
+		vrm_character_array[i].expressionManager.setValue(vrm_character_array[i].expressionManager.mouthExpressionNames[0], level )  
+	}
+
+	renderer.render(scene, camera);
+
+}
+
+exec_vrma = (level)=>{
+
+
+	let my_level  =  level / 127;
+
+let level1 = Number(document.getElementById("level1").value)
+let level2 = Number(document.getElementById("level2").value)
+let level3 = Number(document.getElementById("level3").value)
+
+
+/*
+function change_our_characters(level){
+	for(let i=0 ; i< our_character_location.length; i++){
+		document.getElementById("our_character"+i).src  = our_character_patterns[i][level];
+	}
+}
+*/
+
+console.log("my_level=",my_level);
+
+	if( my_level  <  level1){
+		next_vrma(0);
+//		change_our_characters(0)
+	}else if( my_level  <  level2){
+		next_vrma(1);
+		open_mouth(0.3);
+		setTimeout(open_mouth,1500, 0);
+
+//		change_our_characters(1)
+
+	}else if( my_level  <  level3){
+		next_vrma(2);
+		open_mouth(0.4);
+		setTimeout(open_mouth,1500, 0);
+
+//		change_our_characters(2)
+
+	}else{
+		next_vrma(3);
+		open_mouth(0.6);
+		setTimeout(open_mouth,1500, 0);
+
+//		change_our_characters(3)
+
+	}
+
+};
+
+
+
+
+
+function static_vrm_load(number, url){
+	character_load_flg[number] = -1;
+    vrm_model_load(number,  url,     0,    0, 0  );   // キャラクタが表示されるときの初期位置
+	vrm_anime_check_change(character_change_sub , number );
+}
+
+
+function static_load( url ) {
+
+	gltf_loader.load(url, ( gltf ) => {
+
+		vrma_array[vrma_counter] = gltf;
+console.log("vrma_counter=",vrma_counter);
+
+			// add tag
+			option_tag = document.createElement("option");
+			option_tag.value = vrma_counter;
+			option_tag.innerHTML = url;
+			select_option_tags.appendChild(option_tag);
+
+			vrma_counter++;
+		},
+		( progress ) => console.log( 'Loading model...', 100.0 * ( progress.loaded / progress.total ), '%' ),
+		( error ) => console.error( error )
+	);
+}
+
+
+function static_load2(type, number, url) {
+
+	gltf_loader.load(url, ( gltf ) => {
+
+		vrma_array[type][number] = gltf;
+		vrma_array_name[type][number] = url;
+console.log("type,number",type,number);
+
+
+
+		if(type==2 && number==3)tag_update();
+
+
+
+
+		},
+		( progress ) => console.log( 'Loading vrma2:', 100.0 * ( progress.loaded / progress.total ), '%' ),
+		( error ) => console.error( error )
+	);
+}
+
+
+
+
+function static_load3(type, number, url,filename) {
+
+	gltf_loader.load(url, ( gltf ) => {
+
+		vrma_array[type][number] = gltf;
+		vrma_array_name[type][number] = filename;
+console.log("type,number",type,number);
+
+
+
+///		if(type==1 && number==3)tag_update();
+
+
+			remove_vrma_list();
+//メニューのリセット
+		tag_update();
+
+
+		},
+		( progress ) => console.log( 'Loading vrma2:', 100.0 * ( progress.loaded / progress.total ), '%' ),
+		( error ) => console.error( error )
+	);
+}
+
+
+function remove_vrma_list(){
+	// making list
+	select_option_tags = document.getElementById("vrma_select");
+	// remove all options
+	while(select_option_tags.lastChild){
+		select_option_tags.removeChild(select_option_tags.lastChild);
+	}
+}
+
+
+
+
+function tag_update(){
+
+//タブ切り替え
+
+
+	// making list
+	select_option_tags = document.getElementById("vrma_select");
+
+//tag check
+	let tmp_tag = document.getElementById("type_select");
+
+console.log("tmp_tag",tmp_tag.selectedIndex, vrma_array_name[tmp_tag.selectedIndex]);
+
+// making list
+// check size
+	let list_size = vrma_array_name[tmp_tag.selectedIndex].length;
+	for(let i=0;i<list_size;i++){
+		let option_tag = document.createElement("option");
+		option_tag.innerHTML = vrma_array_name[tmp_tag.selectedIndex][i];
+		select_option_tags.appendChild(option_tag);
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+	clock.start();
+
+	let animation_flg = 0;
+
+	animate();
+
+
+function next_vrma( number ) {
+
+	let tmp_tag = document.getElementById("type_select");
+	let num = tmp_tag.selectedIndex;
+
+
+	let next_vrmAnimations = vrma_array[num][number].userData.vrmAnimations;
+	let next_currentVrmAnimation =new Array();
+
+
+	for(let i=0;i<vrm_files.length;i++){
+		next_currentVrmAnimation[i] = next_vrmAnimations[ 0 ] ?? null;
+
+		next_currentMixer[i] = new THREE.AnimationMixer( vrm_character_array[i].scene );
+		let next_clip = createVRMAnimationClip( next_currentVrmAnimation[i], vrm_character_array[i] );
+
+		next_currentMixer[i].clipAction( next_clip ).play();
+///		next_currentMixer.timeScale = params.timeScale;
+		next_currentMixer[i].timeScale = document.getElementById('time_scale').value;
+
+	}
+
+	animation_flg = 1; //ここでONにする
+
+
+}
+
+
+
+
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	if(animation_flg == 0){
+	}else{
+
+		let deltaTime = clock.getDelta();
+
+		for(let i=0;i<vrm_files.length;i++){
+			if ( next_currentMixer[i] ) {
+				next_currentMixer[i].update( deltaTime );
+			}
+
+			if ( vrm_character_array[i] ) {
+				vrm_character_array[i].update( deltaTime );
+			}
+		}
+
+		for(let i=0;i<vrm_files.length;i++){
+			vrm_rot_Hips( i,  
+				characters_rotation[i][0],
+				characters_rotation[i][1],
+				characters_rotation[i][2]
+			);	
+
+			vrm_character_array[i].humanoid.getRawBoneNode('hips').position.set(
+				characters_position[i][0],
+				characters_position[i][1],
+				characters_position[i][2]
+			);
+		}
+
+		renderer.render( scene, camera );
+	}
+}
+
+
+
+
+
+
+
+
+document.getElementById('time_scale').addEventListener('change', function() {
+	next_currentMixer.timeScale   =   document.getElementById('time_scale').value;
+	document.getElementById('time_scale_label').innerHTML  =  document.getElementById('time_scale').value;
+});
+
+
+
+
+// コントロールするパネルのトグル処理（左上）
+
+function make_target() {
+
+
+	let target_tag = document.getElementById("target_control_panel");
+
+	let span_tag = document.createElement("span");
+//	span_tag.style.position='absolute';
+	span_tag.innerHTML = "<input type='button' value='設定表示切替' id='display_button'>";
+	span_tag.style.zIndex = 24;
+
+
+	console.log(span_tag);
+//	document.body.insertBefore(span_tag,target_tag);
+
+	target_tag.appendChild(span_tag);
+
+	let d_tag = document.getElementById("display_button");
+	d_tag.addEventListener('click', function (){
+
+		let control_panel_tag = document.getElementById("control_panel");
+
+		if(control_panel_tag == null)return;
+
+		if(control_panel_flg == 1){
+			control_panel_tag.style.visibility ="hidden";
+		}else if(control_panel_flg == -1){
+			control_panel_tag.style.visibility ="visible";
+		}
+		control_panel_flg *= -1;
+	});
+
+}
+// end of make_target
+
+
+	let volumeInterval = null;
+	const volumeVisualizer = document.getElementById('volume-bar');
+	const startButton  =  document.getElementById('start');
+	const stopButton   =  document.getElementById('stop');
+
+document.getElementById('sound_stop').addEventListener('click', () => {
+	const audioElement = document.querySelector("audio");
+	audioElement.stop();
+});
+
+document.getElementById('sound_start').addEventListener('click', () => {
+
+/*     audioStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true
+      }
+    });
+*/
+
+    audioContext = new AudioContext();
+    audioSource = audioContext.createMediaElementSource( sound_file_data  );//element
+	//こちらはElement, Streamでない
+
+	audioSource.connect(audioContext.destination); // このconnectが必要
+
+    analyser = audioContext.createAnalyser();
+
+console.log("ac,as,al",audioContext);
+console.log("ac,as,al",audioSource);
+console.log("ac,as,al",analyser);
+
+    analyser.fftSize = 512;
+    analyser.minDecibels = -127;
+    analyser.maxDecibels = 0;
+    analyser.smoothingTimeConstant = 0.4;
+    audioSource.connect(analyser);
+    volumes = new Uint8Array(analyser.frequencyBinCount);
+
+
+	const audioElement = document.querySelector("audio");
+	audioElement.play();
+
+
+	my_formation();
+
+
+	volumeInterval = setInterval(volumeCallback,     volumeCallback_interval      );
+});
+
+
+startButton.addEventListener('click', () => {
+	my_audio();
+	my_formation();
+
+//	animation_flg = 1;
+	volumeInterval = setInterval(volumeCallback,     volumeCallback_interval      );
+});
+
+
+stopButton.addEventListener('click', () => {
+	animation_flg = 0;
+	if(volumeInterval !== null) {
+		clearInterval(volumeInterval);
+		volumeInterval = null;
+	}
+});
+
+
+
+
+
+
+window.addEventListener('DOMContentLoaded', function() {
+//HTMLページが読み込まれたあとの処理
+
+	document.getElementById('read_file_vrm0').addEventListener('change', function(){
+		let input = document.getElementById('read_file_vrm0').files[0];
+		read_vrm_file_api(0,input);
+	}, true)
+
+
+	document.getElementById('time_scale_label').innerHTML  =  document.getElementById('time_scale').value;
+
+
+	document.getElementById('upload_file_vrma0').addEventListener('change', function(event){
+		let input = document.getElementById('upload_file_vrma0').files[0];
+		upload_vrma_file_api(0,input);
+	}, true)
+	document.getElementById('upload_file_vrma1').addEventListener('change', function(event){
+		let input = document.getElementById('upload_file_vrma1').files[0];
+		upload_vrma_file_api(1,input);
+	}, true)
+	document.getElementById('upload_file_vrma2').addEventListener('change', function(event){
+		let input = document.getElementById('upload_file_vrma2').files[0];
+		upload_vrma_file_api(2,input);
+	}, true)
+	document.getElementById('upload_file_vrma3').addEventListener('change', function(event){
+		let input = document.getElementById('upload_file_vrma3').files[0];
+		upload_vrma_file_api(3,input);
+	}, true)
+
+
+
+	// 開発中に頻繁に書き換えるものや事前に書き換えるものは，
+	// キャッシュを使われないようにするために，ここで読み込む
+	let load_script_filename = [
+					"./basic_settings.js",
+					"./our_character_settings.js"
+				]     // 最後のカンマが無いことに注意
+
+
+	let scripts = new Array();
+
+
+	load_script_filename.forEach(function(element,i) {
+		scripts[i] = element+"?"+(new Date()).getTime();       // cache対策でファイル名を書き換え
+	});
+
+	load_js_script_callback(scripts);
+	let file_counter = 0 ; //
+
+	function load_js_script_callback(elems) {
+		let script = new Array();
+		elems.forEach(function(element,i) {
+			script[i] = document.createElement('script');
+			script[i].src = element;
+			document.body.appendChild(script[i]);
+			script[i].onload = function() {
+				console.log("script loaded",load_script_filename.length, file_counter, element);
+				if(file_counter >= load_script_filename.length - 1 ){
+					settings();	// jsファイルを読み取ったあとに実行する関数
+				}
+				file_counter++;
+			};
+		});
+	}
+
+
+
+
+
+document.getElementsByName("mouth_sw").forEach(t => t.addEventListener('change', function (){
+console.log("change change");
+			let mouth_sw_tag = document.getElementsByName("mouth_sw");
+			mouth_sw_tag.forEach(key => {
+				if(key.checked){
+					mouth_sw_flg = key.value;
+				}
+			});
+	})
+);
+
+	make_target();
+	// コントロールするパネルのトグル処理（左上）
+
+});
+// end of DOMContentLoaded
+
+
+
+
+function settings(){
+
+	//ラジオボタンをすべてリセット
+	let radio_tags = document.querySelectorAll('input[type="radio"]');
+	for(let i=0; i < radio_tags.length; i++) {
+		radio_tags[i].checked = false;
+	}
+
+
+	// basic_settings.jsをもとに読み取ったパラメータを入れる
+
+
+	//口を開く・開かないの設定変更
+	let mouth_tags = document.getElementsByName("mouth_sw");
+
+	if(mouth_sw_flg == 1){ mouth_tags[0].checked = true;}
+	if(mouth_sw_flg == 0){ mouth_tags[1].checked = true;}
+	// チェックの位置が上/下 1/0と直感と入れ替わっているので注意すること
+
+
+	// レベルのスレショールド変更
+	document.getElementById("level1").value = level1_value;
+	document.getElementById("level2").value = level2_value;
+	document.getElementById("level3").value = level3_value;
+
+
+	// アニメーションスピードの反映
+	document.getElementById("time_scale").value = animation_speed;
+	document.getElementById('time_scale_label').innerHTML  =  document.getElementById('time_scale').value;
+
+
+//歌うタイプ
+//タグを除去
+/*
+	<option value="0">演歌</option>
+	<option value="1">オペラ</option>
+	<option value="2">アップロードファイル</option>
+*/
+
+	// making list
+	let select_option_tags = document.getElementById("type_select");
+
+	// remove all options
+	while(select_option_tags.lastChild){
+		select_option_tags.removeChild(select_option_tags.lastChild);
+	}
+
+console.log("song_type.length",song_type.length);
+
+	// making list
+	for(let i=0; i<song_type.length ; i++){
+				let option_tag = document.createElement("option");
+				option_tag.value = i;
+				option_tag.innerHTML = song_type[i];
+				select_option_tags.appendChild(option_tag);
+	}
+
+	//最後に追加
+	let option_tag_end;
+	option_tag_end = document.createElement("option");
+	option_tag_end.innerHTML = "アップロードファイル";
+	select_option_tags.appendChild(option_tag_end);
+
+
+	init();
+
+
+	setTimeout(function (){
+		formation_calc();
+	},2000);
+
+
+	//描画位置の変更(initのあと)
+	document.getElementById("character_window").style.top = ""+character_top+"px";
+	document.getElementById("character_window").style.left =""+character_left+"px";
+
+
+console.log(document.getElementById("character_window").style);
+
+
+	//背景画像
+	if(background_image!=null){
+		document.body.style.backgroundImage  = "url(" + background_image + ")";
+		document.body.style.backgroundRepeat = "no-repeat";
+		document.body.style.backgroundSize   = "cover";
+	}
+
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+document.getElementById('vrma_select').addEventListener('change', ()=> {
+	let tmp_tag = document.getElementById("vrma_select");
+	if(tmp_tag.selectedIndex == 0){return;}
+	next_vrma(tmp_tag.selectedIndex-1);
+});
+
+document.getElementById('type_select').addEventListener('change', ()=> {
+	let tmp_tag = document.getElementById("type_select");
+	remove_vrma_list();
+	tag_update();
+});
+
+
+
+
+
+
+
+    let audioStream;
+    let audioContext;
+    let audioSource;
+
+    let analyser;
+    let volumes;
+
+	let delete_a;
+
+
+async function my_audio(){
+
+     audioStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true
+      }
+    });
+
+    audioContext = new AudioContext();
+    audioSource = audioContext.createMediaStreamSource(audioStream);
+    analyser = audioContext.createAnalyser();
+
+console.log("audioContext,audioSource,analyser",audioContext,audioSource,analyser);
+
+    analyser.fftSize = 512;
+    analyser.minDecibels = -127;
+    analyser.maxDecibels = 0;
+    analyser.smoothingTimeConstant = 0.4;
+    audioSource.connect(analyser);
+    volumes = new Uint8Array(analyser.frequencyBinCount);
+
+}
+
+
+let e_counter=0;
+
+    function volumeCallback(){
+
+      analyser.getByteFrequencyData(volumes);
+      let volumeSum  =  0;
+
+      for(const volume of volumes)
+        volumeSum += volume;
+
+
+      let  averageVolume = volumeSum / volumes.length;
+
+
+////averageVolume *= 2;
+
+averageVolume *= volume_times ;
+
+//console.log("averageVolume=",averageVolume)
+
+// 10回に１回に
+//if(e_counter > 10){
+
+
+if(e_counter > e_counter_setting){
+
+//前の動作が残っていたら消すようにする？
+if(delete_a != null){clearTimeout(delete_a);}
+
+    delete_a = setTimeout(exec_vrma,0,averageVolume);
+	e_counter =0;
+}
+
+e_counter++;
+
+      // Value range: 127 = analyser.maxDecibels - analyser.minDecibels;
+      volumeVisualizer.style.setProperty('--volume', (averageVolume * 100 / 127) + '%');
+    };
+
+
+//  } catch(e) {
+//    console.error('Failed to initialize volume visualizer, simulating instead...', e);
+//    // Simulation
+//    //TODO remove in production!
+//    let lastVolume = 50;
+//    volumeCallback = () => {
+//      const volume = Math.min(Math.max(Math.random() * 100, 0.8 * lastVolume), 1.2 * lastVolume);
+//      lastVolume = volume;
+//      volumeVisualizer.style.setProperty('--volume', volume + '%');
+//    };
+//  }
+
+</script>
+
+</body>
+
+</html>
+
+
