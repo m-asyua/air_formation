@@ -1,6 +1,4 @@
 /*
-
-
 配列を追加するとき，最後にカンマが不要であることに注意すること！！
 
 	................
@@ -15,8 +13,6 @@
 	[180, 250 ]   <<< ここはカンマ不要
 ];
 
-
-
 */
 
 
@@ -30,6 +26,47 @@ let vrm_files = [
 	'./idol/idol_v3.vrm',
 	'./idol/idol_v3.vrm'
 ];
+
+
+
+let song_pattern = [
+	[
+	'./idol/walk0.vrma',
+	'./idol/walk1.vrma',
+	'./idol/walk2.vrma',
+	'./idol/walk2.vrma'    // walk3は作っていないのでwalk2を使いまわし
+	],
+	[
+	'./vrma/opera0.vrma',
+	'./vrma/opera1.vrma',
+	'./vrma/opera2.vrma',
+	'./vrma/opera3.vrma'
+	],
+	[
+	'./idol/walk0.vrma',
+	'./idol/walk1.vrma',
+	'./idol/walk2.vrma',
+	'./idol/walk2.vrma'    // walk3は作っていないのでwalk2を使いまわし
+	],
+	[
+	'./vrma/enka0.vrma',
+	'./vrma/enka1.vrma',
+	'./vrma/enka2.vrma',
+	'./vrma/enka3.vrma'
+	],
+	[
+	'./vrma/opera0.vrma',
+	'./vrma/opera1.vrma',
+	'./vrma/opera2.vrma',
+	'./vrma/opera3.vrma'
+	]
+];
+//song typeに応じて追加可能
+
+
+
+
+
 
 
 let characters_position = [ 
@@ -71,20 +108,8 @@ let the_number_of_section = 30;
 
 
 
-	let camera_position = [ -20.5, 32.32, -302.50 ];
-	let camera_rotation = [ -3.035, -0.067, -3.134  ]; //関係なし？
-
-
-
-
-
-
-//	let camera_position = [ -11,0.125, -195.45  ];
-//	let camera_rotation = [ -3.14,  -0.05,  -3.14 ]; //関係なし？
-
-//	let camera_position = [ -19.06934259332644, 7.012735323447778 ,-194.71049734642583  ];
-//	let camera_rotation = [-3.045149361723447, -0.10253458357191579, -3.1316908025659522  ]; //関係なし？
-
+let camera_position = [ -20.5, 32.32, -302.50 ];
+let camera_rotation = [ -3.035, -0.067, -3.134  ]; //関係なし？
 
 
 let camera_time = [
@@ -181,7 +206,6 @@ let			camera_movement_rz = [];
 let			camera_movement_t = [];
 
 
-//時間をどうやって測ろうか．．．不要？
 
 function formation_calc(){
 //xyzの座標は，そのままの位置の値が入る
